@@ -1,0 +1,1142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>像素机甲对战 · Pixel Mecha Battle</title>
+<style>
+  :root {
+    --bg: #0a0a14;
+    --panel: #14142b;
+    --ink: #e8e8f0;
+    --accent: #ffd43b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    background: radial-gradient(ellipse at center, #1a1a2e 0%, #0a0a14 70%);
+    color: var(--ink);
+    font-family: "Courier New", monospace;
+    overflow: hidden;
+  }
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 16px;
+  }
+  h1 {
+    font-size: 22px;
+    letter-spacing: 4px;
+    color: var(--accent);
+    text-shadow: 2px 2px 0 #e03131, 4px 4px 0 #3b5bdb;
+  }
+  .stage {
+    position: relative;
+    border: 4px solid #2a2a4a;
+    box-shadow: 0 0 0 2px #000, 0 10px 40px rgba(0,0,0,0.8), inset 0 0 60px rgba(0,0,0,0.6);
+    background: #000;
+    line-height: 0;
+  }
+  canvas {
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+    display: block;
+  }
+  /* CRT scanline overlay */
+  .stage::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      to bottom,
+      rgba(0,0,0,0) 0px,
+      rgba(0,0,0,0) 2px,
+      rgba(0,0,0,0.25) 3px,
+      rgba(0,0,0,0) 4px
+    );
+    mix-blend-mode: multiply;
+  }
+  .hud {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    justify-content: center;
+    font-size: 12px;
+    color: #9aa0b4;
+    max-width: 960px;
+  }
+  .hud .col { border: 1px dashed #3a3a5a; padding: 8px 12px; }
+  .hud b { color: var(--accent); }
+  .hud kbd {
+    display: inline-block;
+    background: #2a2a4a;
+    border: 1px solid #4a4a6a;
+    border-radius: 3px;
+    padding: 1px 6px;
+    font-family: monospace;
+    color: #fff;
+    margin: 0 1px;
+  }
+  button {
+    background: var(--accent);
+    color: #1a1a2e;
+    border: none;
+    padding: 8px 18px;
+    font-family: monospace;
+    font-weight: bold;
+    cursor: pointer;
+    letter-spacing: 2px;
+    box-shadow: 3px 3px 0 #000;
+  }
+  button:active { transform: translate(2px,2px); box-shadow: 1px 1px 0 #000; }
+</style>
+</head>
+<body>
+  <h1>★ PIXEL MECHA BATTLE ★</h1>
+  <div class="stage">
+    <canvas id="game" width="320" height="192"></canvas>
+  </div>
+  <div class="hud">
+    <div class="col"><b>P1 (蓝)</b> 移动 <kbd>A</kbd><kbd>D</kbd> · 跳 <kbd>W</kbd> · 攻击 <kbd>F</kbd> · 防御 <kbd>G</kbd></div>
+    <div class="col"><b>P2 (红)</b> 移动 <kbd>←</kbd><kbd>→</kbd> · 跳 <kbd>↑</kbd> · 攻击 <kbd>J</kbd> · 防御 <kbd>K</kbd></div>
+    <div class="col">重开 <kbd>R</kbd></div>
+  </div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ============================================================
+  //  基础常量
+  // ============================================================
+  const canvas = document.getElementById("game");
+  const ctx = canvas.getContext("2d");
+  ctx.imageSmoothingEnabled = false;
+
+  const W = canvas.width;   // 320 逻辑像素
+  const H = canvas.height;  // 192 逻辑像素
+  const GROUND_Y = 160;     // 地面 y
+  const GRAVITY = 0.45;
+  const PIXEL = 1;          // 逻辑像素 = 1，通过 CSS 放大到 3x
+
+  // 调色板：两位玩家共用同一张精灵表，仅主色不同
+  const PALETTES = {
+    blue: {
+      outline: "#0d1b2a",
+      body:    "#1f6feb",
+      light:   "#4d9bff",
+      visor:   "#00e5ff",
+      core:    "#ffd43b",
+      metal:   "#5a6275",
+      silver:  "#c9d1e0",
+      weapon:  "#e9ecef",
+      shadow:  "#0a1628",
+      antenna: "#7cfff7",
+      eye:     "#ffffff",
+    },
+    red: {
+      outline: "#2b0a0a",
+      body:    "#d62828",
+      light:   "#ff6b6b",
+      visor:   "#ff922b",
+      core:    "#ffd43b",
+      metal:   "#5a4a4a",
+      silver:  "#d9c9c9",
+      weapon:  "#f1f1f1",
+      shadow:  "#1a0505",
+      antenna: "#ff9a3c",
+      eye:     "#ffffff",
+    },
+  };
+
+  // ============================================================
+  //  像素精灵数据（16 x 22，字符映射到调色板键）
+  //  '.' = 透明
+  // ============================================================
+  // 颜色键: o=outline b=body l=light v=visor c=core g=metal s=silver w=weapon
+  const SPR = {
+    // ============== 待机动画：呼吸 + 天线指示灯闪烁 + 面罩高光移动 ==============
+    idle1: [ // 吸气：胸口核心展开，天线亮，面罩高光偏右
+      "......ao........",
+      ".....obbo.......",
+      "....obbbbo......",
+      "....obbbbo......",
+      "....ovvvevo.....",
+      "...oobbbbboo....",
+      "..obbbbbbbbo....",
+      ".obbooooooobbo..",
+      ".obbocccccobbo..",
+      ".obbocccccobbo..",
+      ".obbooooooobbo..",
+      "..obbbbbbbbbo...",
+      "..obbo...obbo...",
+      "..oggo...oggo...",
+      "..oggo...oggo...",
+      "..osso...osso...",
+      "..osso...osso...",
+      "...oo.....oo....",
+      "..osso...osso...",
+      "..osso...osso...",
+      "..osso...osso...",
+      "..ooo.....ooo...",
+    ],
+    idle2: [ // 呼气过渡：核心收窄，天线亮，高光居中
+      "......ao........",
+      ".....obbo.......",
+      "....obbbbo......",
+      "....obbbbo......",
+      "....ovvevvo.....",
+      "...oobbbbboo....",
+      "..obbbbbbbbo....",
+      ".obbooooooobbo..",
+      ".obboccccoobbo..",
+      ".obboccccoobbo..",
+      ".obbooooooobbo..",
+      "..obbbbbbbbbo...",
+      "..obbo...obbo...",
+      "..oggo...oggo...",
+      "..oggo...oggo...",
+      "..osso...osso...",
+      "..osso...osso...",
+      "...oo.....oo....",
+      "..osso...osso...",
+      "..osso...osso...",
+      "..osso...osso...",
+      "..ooo.....ooo...",
+    ],
+    idle3: [ // 呼气到底：核心最窄，天线熄灭（变暗），高光偏左
+      "......oo........",
+      ".....obbo.......",
+      "....obbbbo......",
+      "....obbbbo......",
+      "....ovevvvo.....",
+      "...oobbbbboo....",
+      "..obbbbbbbbo....",
+      ".obbooooooobbo..",
+      ".obboccoooobbo..",
+      ".obboccoooobbo..",
+      ".obbooooooobbo..",
+      "..obbbbbbbbbo...",
+      "..obbo...obbo...",
+      "..oggo...oggo...",
+      "..oggo...oggo...",
+      "..osso...osso...",
+      "..osso...osso...",
+      "...oo.....oo....",
+      "..osso...osso...",
+      "..osso...osso...",
+      "..osso...osso...",
+      "..ooo.....ooo...",
+    ],
+    idle4: [ // 吸气过渡：核心回升，天线亮，高光居中
+      "......ao........",
+      ".....obbo.......",
+      "....obbbbo......",
+      "....obbbbo......",
+      "....ovvevvo.....",
+      "...oobbbbboo....",
+      "..obbbbbbbbo....",
+      ".obbooooooobbo..",
+      ".obboccccoobbo..",
+      ".obboccccoobbo..",
+      ".obbooooooobbo..",
+      "..obbbbbbbbbo...",
+      "..obbo...obbo...",
+      "..oggo...oggo...",
+      "..oggo...oggo...",
+      "..osso...osso...",
+      "..osso...osso...",
+      "...oo.....oo....",
+      "..osso...osso...",
+      "..osso...osso...",
+      "..osso...osso...",
+      "..ooo.....ooo...",
+    ],
+
+    // ============== 行走动画：4 帧，腿部大幅交替 + 身体起伏 ==============
+    walk1: [ // 左腿前迈（向右），右腿后蹬，上身前倾
+      ".......ao.......",
+      "......obbo......",
+      ".....obbbbo.....",
+      ".....obbbbo.....",
+      ".....ovvvvo.....",
+      "....oobbbbboo...",
+      "...obbbbbbbbo...",
+      "..obbooooooobbo.",
+      "..obbocccccobbo.",
+      "..obbocccccobbo.",
+      "..obbooooooobbo.",
+      "...obbbbbbbbbo..",
+      "..obbo...obbo...",
+      "..oggo...oggo...",
+      "..oggo...oggo...",
+      "..osso...osso...",
+      "..osso...osso...",
+      "...oo.....oo....",
+      "..osso...osso...",
+      "..osso....osso..",
+      "..ooo......ooo..",
+      "................",
+    ],
+    walk2: [ // 双腿交叠（身体抬高 1px），天线亮
+      "......ao........",
+      ".....obbo.......",
+      "....obbbbo......",
+      "....obbbbo......",
+      "....ovvvvo......",
+      "...oobbbbboo....",
+      "..obbbbbbbbo....",
+      ".obbooooooobbo..",
+      ".obbocccccobbo..",
+      ".obbocccccobbo..",
+      ".obbooooooobbo..",
+      "..obbbbbbbbbo...",
+      "..obbo...obbo...",
+      "..oggo...oggo...",
+      "..oggo...oggo...",
+      "..osso...osso...",
+      "..osso...osso...",
+      "...oo.....oo....",
+      "..osso...osso...",
+      "..ooo.....ooo...",
+      "................",
+      "................",
+    ],
+    walk3: [ // 右腿前迈，左腿后蹬，上身前倾
+      ".......ao.......",
+      "......obbo......",
+      ".....obbbbo.....",
+      ".....obbbbo.....",
+      ".....ovvvvo.....",
+      "....oobbbbboo...",
+      "...obbbbbbbbo...",
+      "..obbooooooobbo.",
+      "..obbocccccobbo.",
+      "..obbocccccobbo.",
+      "..obbooooooobbo.",
+      "...obbbbbbbbbo..",
+      "..obbo...obbo...",
+      "..oggo...oggo...",
+      "..oggo...oggo...",
+      "..osso...osso...",
+      "..osso...osso...",
+      "...oo.....oo....",
+      "..osso...osso...",
+      ".osso.....osso..",
+      ".ooo.......ooo..",
+      "................",
+    ],
+    walk4: [ // 双腿交叠（身体抬高 1px）
+      "......ao........",
+      ".....obbo.......",
+      "....obbbbo......",
+      "....obbbbo......",
+      "....ovvvvo......",
+      "...oobbbbboo....",
+      "..obbbbbbbbo....",
+      ".obbooooooobbo..",
+      ".obbocccccobbo..",
+      ".obbocccccobbo..",
+      ".obbooooooobbo..",
+      "..obbbbbbbbbo...",
+      "..obbo...obbo...",
+      "..oggo...oggo...",
+      "..oggo...oggo...",
+      "..osso...osso...",
+      "..osso...osso...",
+      "...oo.....oo....",
+      "..osso...osso...",
+      "..ooo.....ooo...",
+      "................",
+      "................",
+    ],
+
+    // ============== 跳跃：双腿收起，双臂微张 ==============
+    jump: [
+      "......ao........",
+      ".....obbo.......",
+      "....obbbbo......",
+      "....obbbbo......",
+      "....ovvvvo......",
+      "...oobbbbboo....",
+      "..obbbbbbbbo....",
+      ".obbooooooobbo..",
+      ".obbocccccobbo..",
+      ".obbocccccobbo..",
+      ".obbooooooobbo..",
+      "..obbbbbbbbbo...",
+      ".obbo.....obbo..",
+      ".oggo.....oggo..",
+      ".oggo.....oggo..",
+      "..osso...osso...",
+      "..osso...osso...",
+      "...oo.....oo....",
+      "....oo...oo.....",
+      "....oo...oo.....",
+      "................",
+      "................",
+    ],
+
+    // ============== 攻击：三段蓄力/出拳/收招 ==============
+    attack1: [ // 蓄力：右臂后拉，武器举到身后
+      "......ao........",
+      ".....obbo.......",
+      "....obbbbo......",
+      "....ovvvvo......",
+      "...oobbbbboo....",
+      "..obbbbbbbbo....",
+      ".obbooooooobbo..",
+      ".obbocccccobbo..",
+      ".obbocccccobbo..",
+      ".obbooooooobbo..",
+      "..obbbbbbbbbo...",
+      "..obbo...obbo...",
+      "woggo...oggo....",
+      "woggo...oggo....",
+      "..osso...osso...",
+      "..osso...osso...",
+      "...oo.....oo....",
+      "..osso...osso...",
+      "..osso...osso...",
+      "..osso...osso...",
+      "..ooo.....ooo...",
+      "................",
+    ],
+    attack2: [ // 出拳：右臂全力前伸，武器突出，身体前倾
+      ".......ao.......",
+      "......obbo......",
+      ".....obbbbo.....",
+      ".....ovvvvo.....",
+      "....oobbbbboo...",
+      "...obbbbbbbbo...",
+      "..obbooooooobbo.",
+      "..obbocccccobbo.",
+      "..obbocccccobbo.",
+      "..obbooooooobbo.",
+      "...obbbbbbbbbo..",
+      "..obbo...obbobow",
+      "..oggo...ogggow.",
+      "..oggo...oggo...",
+      "..osso...osso...",
+      "..osso...osso...",
+      "...oo.....oo....",
+      "..osso...osso...",
+      "..osso...osso...",
+      "..osso...osso...",
+      "..ooo.....ooo...",
+      "................",
+    ],
+    attack3: [ // 收招：右臂收回过渡
+      "......ao........",
+      ".....obbo.......",
+      "....obbbbo......",
+      "....ovvvvo......",
+      "...oobbbbboo....",
+      "..obbbbbbbbo....",
+      ".obbooooooobbo..",
+      ".obbocccccobbo..",
+      ".obbocccccobbo..",
+      ".obbooooooobbo..",
+      "..obbbbbbbbbo...",
+      "..obbo..obbo....",
+      "..oggoo.oggo....",
+      "..oggo..oggo....",
+      "..osso...osso...",
+      "..osso...osso...",
+      "...oo.....oo....",
+      "..osso...osso...",
+      "..osso...osso...",
+      "..osso...osso...",
+      "..ooo.....ooo...",
+      "................",
+    ],
+
+    // ============== 防御：举起能量盾 ==============
+    defend: [
+      "......ao........",
+      ".....obbo.......",
+      "....obbbbo......",
+      "....ovvvvo......",
+      "...oobbbbboo....",
+      "..obbbbbbbbo.ss.",
+      "..obbbbbbbbo.ss.",
+      ".obbooooooobsss.",
+      ".obbocccccobsss.",
+      ".obbocccccobsss.",
+      ".obbooooooobsss.",
+      "..obbbbbbbbbo.s.",
+      "..obbo...obbo...",
+      "..oggo...oggo...",
+      "..oggo...oggo...",
+      "..osso...osso...",
+      "..osso...osso...",
+      "...oo.....oo....",
+      "..osso...osso...",
+      "..osso...osso...",
+      "..osso...osso...",
+      "..ooo.....ooo...",
+    ],
+
+    // ============== 受击：面罩变叉，核心受损收窄 ==============
+    hurt: [
+      "......oo........",
+      ".....obbo.......",
+      "....obbbbo......",
+      "....oXXXXo......",
+      "...oobbbbboo....",
+      "..obbbbbbbbo....",
+      ".obbooooooobbo..",
+      ".obboccoooobbo..",
+      ".obboccoooobbo..",
+      ".obbooooooobbo..",
+      "..obbbbbbbbbo...",
+      "..obbo...obbo...",
+      "..oggo...oggo...",
+      "..oggo...oggo...",
+      "..osso...osso...",
+      "..osso...osso...",
+      "...oo.....oo....",
+      "..osso...osso...",
+      "..osso...osso...",
+      "..osso...osso...",
+      "..ooo.....ooo...",
+      "................",
+    ],
+  };
+
+  const SPR_W = 16, SPR_H = 22;
+
+  // 颜色字符 -> 调色板键 映射
+  const CHAR_TO_KEY = {
+    "o": "outline",
+    "b": "body",
+    "l": "light",
+    "v": "visor",
+    "c": "core",
+    "g": "metal",
+    "s": "silver",
+    "w": "weapon",
+    "a": "antenna",
+    "e": "eye",
+    "X": "visor", // 受击时眼睛变叉(用同色即可，闪烁由代码处理)
+  };
+
+  // 预渲染精灵到离屏 canvas（每位玩家一份）
+  function buildSpriteCache(palette) {
+    const cache = {};
+    for (const name in SPR) {
+      const off = document.createElement("canvas");
+      off.width = SPR_W;
+      off.height = SPR_H;
+      const o = off.getContext("2d");
+      const data = SPR[name];
+      for (let y = 0; y < SPR_H; y++) {
+        const row = data[y] || "";
+        for (let x = 0; x < SPR_W; x++) {
+          const ch = row[x];
+          if (ch && ch !== ".") {
+            const key = CHAR_TO_KEY[ch];
+            if (key && palette[key]) {
+              o.fillStyle = palette[key];
+              o.fillRect(x, y, 1, 1);
+            }
+          }
+        }
+      }
+      cache[name] = off;
+    }
+    return cache;
+  }
+
+  const SPRITE_CACHE = {
+    blue: buildSpriteCache(PALETTES.blue),
+    red:  buildSpriteCache(PALETTES.red),
+  };
+
+  // ============================================================
+  //  输入管理
+  // ============================================================
+  const keys = {};
+  window.addEventListener("keydown", (e) => {
+    keys[e.key.toLowerCase()] = true;
+    // 防止方向键滚动页面
+    if (["arrowleft","arrowright","arrowup","arrowdown"," "].includes(e.key.toLowerCase())) {
+      e.preventDefault();
+    }
+    if (e.key.toLowerCase() === "r") game.reset();
+  });
+  window.addEventListener("keyup", (e) => {
+    keys[e.key.toLowerCase()] = false;
+  });
+
+  // ============================================================
+  //  机甲实体
+  // ============================================================
+  class Mecha {
+    constructor(opts) {
+      this.id = opts.id;            // 1 / 2
+      this.name = opts.name;
+      this.paletteKey = opts.paletteKey; // blue / red
+      this.x = opts.x;
+      this.y = GROUND_Y - SPR_H;
+      this.vx = 0;
+      this.vy = 0;
+      this.facing = opts.facing;    // 1 右 / -1 左
+      this.onGround = true;
+
+      this.hp = 100;
+      this.maxHp = 100;
+
+      this.state = "idle";          // idle/walk/jump/attack/defend/hurt/dead
+      this.stateTimer = 0;
+      this.animTime = 0;
+      this.attackHitDone = false;   // 本次攻击是否已结算命中
+      this.hurtCooldown = 0;        // 受击硬直/无敌帧
+      this.knockback = 0;
+
+      // 输入映射
+      this.controls = opts.controls;
+    }
+
+    get bounds() {
+      // 身体碰撞盒（略小于精灵）
+      return { x: this.x + 2, y: this.y + 4, w: SPR_W - 4, h: SPR_H - 4 };
+    }
+
+    get attackHitbox() {
+      // 攻击判定盒：只在攻击的 strike 帧生效
+      if (this.state !== "attack") return null;
+      const frame = this.currentAttackFrame();
+      if (frame !== "attack2") return null;
+      const reach = 14;
+      const hx = this.facing === 1 ? this.x + SPR_W - 2 : this.x - reach + 2;
+      return { x: hx, y: this.y + 6, w: reach, h: 10 };
+    }
+
+    currentAttackFrame() {
+      // 3 帧分段: 蓄力 0-7, 出拳 8-14, 收招 15-22
+      const t = this.stateTimer;
+      if (t < 8) return "attack1";
+      if (t < 15) return "attack2";
+      return "attack3";
+    }
+
+    isDefending() {
+      return this.state === "defend" && this.onGround;
+    }
+
+    takeDamage(dmg, fromDir) {
+      if (this.hurtCooldown > 0 || this.state === "dead") return;
+      // 防御减伤
+      const defending = this.isDefending();
+      const actual = defending ? Math.max(1, Math.floor(dmg * 0.25)) : dmg;
+      this.hp = Math.max(0, this.hp - actual);
+      this.hurtCooldown = defending ? 8 : 18;
+      this.knockback = defending ? 1.2 * fromDir : 3.2 * fromDir;
+      if (!defending) {
+        this.state = "hurt";
+        this.stateTimer = 0;
+      }
+      // 屏幕震动
+      game.shake = defending ? 2 : 6;
+      // 伤害飘字
+      game.spawnFloatText(this.x + SPR_W/2, this.y, "-" + actual, defending ? "#9aa0b4" : "#ff6b6b");
+      if (this.hp <= 0) {
+        this.state = "dead";
+        this.stateTimer = 0;
+      }
+    }
+
+    update(opponent) {
+      if (this.state === "dead") {
+        this.stateTimer++;
+        this.vy += GRAVITY;
+        this.y += this.vy;
+        if (this.y >= GROUND_Y - SPR_H) { this.y = GROUND_Y - SPR_H; this.vy = 0; }
+        return;
+      }
+
+      const c = this.controls;
+      const left  = keys[c.left];
+      const right = keys[c.right];
+      const jump  = keys[c.jump];
+      const atk   = keys[c.attack];
+      const def   = keys[c.defend];
+
+      this.animTime++;
+      if (this.hurtCooldown > 0) this.hurtCooldown--;
+
+      // 击退
+      if (Math.abs(this.knockback) > 0.05) {
+        this.x += this.knockback;
+        this.knockback *= 0.78;
+      } else {
+        this.knockback = 0;
+      }
+
+      // 状态机
+      if (this.state === "hurt") {
+        this.stateTimer++;
+        if (this.stateTimer > 14) { this.state = "idle"; this.stateTimer = 0; }
+      } else if (this.state === "attack") {
+        this.stateTimer++;
+        // 命中结算（只在 strike 帧进行一次）
+        if (!this.attackHitDone && this.currentAttackFrame() === "attack2") {
+          const hb = this.attackHitbox;
+          if (hb && rectOverlap(hb, opponent.bounds)) {
+            const dir = this.facing;
+            opponent.takeDamage(14, dir);
+          }
+          this.attackHitDone = true;
+        }
+        if (this.stateTimer > 22) { this.state = "idle"; this.stateTimer = 0; this.attackHitDone = false; }
+      } else {
+        // 可操作状态
+        this.state = "idle";
+        let moving = false;
+
+        if (def && this.onGround) {
+          this.state = "defend";
+        } else if (atk) {
+          this.state = "attack";
+          this.stateTimer = 0;
+          this.attackHitDone = false;
+        } else {
+          if (left)  { this.vx = -1.6; moving = true; this.facing = -1; }
+          else if (right) { this.vx = 1.6; moving = true; this.facing = 1; }
+          else this.vx = 0;
+
+          if (jump && this.onGround) {
+            this.vy = -7.2;
+            this.onGround = false;
+          }
+
+          if (moving) this.state = "walk";
+        }
+
+        if (!this.onGround) this.state = "jump";
+      }
+
+      // 物理
+      this.vy += GRAVITY;
+      this.x += this.vx;
+      this.y += this.vy;
+
+      // 地面
+      if (this.y >= GROUND_Y - SPR_H) {
+        if (!this.onGround && this.vy > 1) {
+          // 落地扬尘
+          game.spawnDust(this.x + SPR_W / 2, GROUND_Y);
+          game.shake = Math.max(game.shake, 2);
+        }
+        this.y = GROUND_Y - SPR_H;
+        this.vy = 0;
+        this.onGround = true;
+      }
+
+      // 边界
+      if (this.x < 2) this.x = 2;
+      if (this.x > W - SPR_W - 2) this.x = W - SPR_W - 2;
+
+      // 面向对手（非移动/非攻击时自动朝向对手）
+      if (this.state === "idle" || this.state === "walk") {
+        // 保持玩家手动朝向即可
+      }
+    }
+
+    render() {
+      const pal = PALETTES[this.paletteKey];
+      let frame;
+      switch (this.state) {
+        case "walk":
+          frame = "walk" + ((Math.floor(this.animTime / 5) % 4) + 1);
+          break;
+        case "jump":
+          frame = "jump";
+          break;
+        case "attack":
+          frame = this.currentAttackFrame();
+          break;
+        case "defend":
+          frame = "defend";
+          break;
+        case "hurt":
+          frame = "hurt";
+          break;
+        case "dead":
+          frame = "hurt";
+          break;
+        default:
+          frame = "idle" + ((Math.floor(this.animTime / 12) % 4) + 1);
+      }
+
+      const img = SPRITE_CACHE[this.paletteKey][frame];
+
+      ctx.save();
+      // 受击闪烁
+      const flash = this.hurtCooldown > 0 && Math.floor(this.hurtCooldown / 2) % 2 === 0;
+
+      // 翻转处理：默认精灵朝右；朝左则水平翻转
+      if (this.facing === -1) {
+        ctx.translate(this.x + SPR_W, this.y);
+        ctx.scale(-1, 1);
+        if (flash) {
+          ctx.globalCompositeOperation = "source-over";
+        }
+        ctx.drawImage(img, 0, 0);
+        if (flash) {
+          ctx.globalCompositeOperation = "source-atop";
+          ctx.fillStyle = "rgba(255,255,255,0.8)";
+          ctx.fillRect(0, 0, SPR_W, SPR_H);
+          ctx.globalCompositeOperation = "source-over";
+        }
+      } else {
+        ctx.drawImage(img, this.x, this.y);
+        if (flash) {
+          ctx.globalCompositeOperation = "source-atop";
+          ctx.fillStyle = "rgba(255,255,255,0.8)";
+          ctx.fillRect(this.x, this.y, SPR_W, SPR_H);
+          ctx.globalCompositeOperation = "source-over";
+        }
+      }
+      ctx.restore();
+
+      // 攻击出拳瞬间的挥砍轨迹
+      if (this.state === "attack" && this.currentAttackFrame() === "attack2") {
+        ctx.save();
+        const dir = this.facing;
+        const cx = this.x + (dir === 1 ? SPR_W : 0);
+        const cy = this.y + 10;
+        const alpha = 0.5 + 0.3 * Math.sin(this.animTime * 0.8);
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 10, dir === 1 ? -0.8 : Math.PI - 0.8, dir === 1 ? 0.8 : Math.PI + 0.8);
+        ctx.stroke();
+        ctx.globalAlpha = alpha * 0.5;
+        ctx.strokeStyle = "#74c0fc";
+        ctx.lineWidth = 4;
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // 死亡倒地：淡出
+      if (this.state === "dead") {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, 1 - this.stateTimer / 60);
+        ctx.restore();
+      }
+
+      // 防御盾光效：能量护盾 + 边缘高光 + 脉冲
+      if (this.isDefending()) {
+        ctx.save();
+        const dir = this.facing;
+        const sx = dir === 1 ? this.x + SPR_W - 4 : this.x - 4;
+        const sy = this.y + 4;
+        const sw = 8, sh = SPR_H - 8;
+        const pulse = 0.5 + 0.5 * Math.sin(this.animTime * 0.25);
+        // 护盾主体
+        ctx.globalAlpha = 0.25 + 0.15 * pulse;
+        ctx.fillStyle = "#74c0fc";
+        ctx.fillRect(sx, sy, sw, sh);
+        // 护盾边缘高光
+        ctx.globalAlpha = 0.6 + 0.3 * pulse;
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(sx, sy, 1, sh);
+        ctx.fillRect(sx + sw - 1, sy, 1, sh);
+        // 能量粒子
+        ctx.globalAlpha = 0.4 + 0.4 * pulse;
+        for (let i = 0; i < 3; i++) {
+          const py = sy + ((this.animTime * 1.5 + i * 6) % sh);
+          ctx.fillRect(sx + 2 + (i % 2) * 3, py, 1, 1);
+        }
+        ctx.restore();
+      }
+    }
+  }
+
+  // ============================================================
+  //  工具：矩形重叠
+  // ============================================================
+  function rectOverlap(a, b) {
+    return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+  }
+
+  // ============================================================
+  //  场景绘制
+  // ============================================================
+  function drawBackground(time) {
+    // 天空渐变
+    const g = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
+    g.addColorStop(0, "#1a1a3e");
+    g.addColorStop(0.6, "#3a1f5d");
+    g.addColorStop(1, "#5b2a86");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, GROUND_Y);
+
+    // 星点
+    ctx.fillStyle = "#ffffff";
+    for (let i = 0; i < 30; i++) {
+      const sx = (i * 53) % W;
+      const sy = (i * 37) % (GROUND_Y - 30);
+      const tw = (Math.sin(time * 0.002 + i) + 1) * 0.5;
+      ctx.globalAlpha = 0.3 + tw * 0.5;
+      ctx.fillRect(sx, sy, 1, 1);
+    }
+    ctx.globalAlpha = 1;
+
+    // 远景城市剪影
+    ctx.fillStyle = "#160a2e";
+    const skyline = [4, 8, 6, 12, 5, 10, 7, 14, 6, 9, 11, 5, 8, 13, 6];
+    let bx = 0;
+    for (let i = 0; i < skyline.length; i++) {
+      const bw = 18;
+      const bh = skyline[i] * 4;
+      ctx.fillRect(bx, GROUND_Y - bh, bw, bh);
+      // 窗户
+      ctx.fillStyle = "#ffd43b";
+      for (let wy = GROUND_Y - bh + 4; wy < GROUND_Y - 2; wy += 5) {
+        for (let wx = bx + 3; wx < bx + bw - 2; wx += 5) {
+          if ((wx + wy + i) % 3 !== 0) ctx.fillRect(wx, wy, 2, 2);
+        }
+      }
+      ctx.fillStyle = "#160a2e";
+      bx += bw;
+    }
+
+    // 地面
+    ctx.fillStyle = "#2b2b3d";
+    ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
+    // 地面纹理线
+    ctx.fillStyle = "#3a3a52";
+    for (let x = 0; x < W; x += 16) {
+      ctx.fillRect(x, GROUND_Y, 1, H - GROUND_Y);
+    }
+    ctx.fillStyle = "#4a4a6a";
+    ctx.fillRect(0, GROUND_Y, W, 1);
+  }
+
+  // ============================================================
+  //  飘字 / 屏幕震动
+  // ============================================================
+  class FloatText {
+    constructor(x, y, text, color) {
+      this.x = x; this.y = y; this.text = text; this.color = color;
+      this.life = 40;
+    }
+    update() { this.y -= 0.6; this.life--; }
+    render() {
+      ctx.globalAlpha = Math.max(0, this.life / 40);
+      ctx.fillStyle = "#000";
+      ctx.font = "bold 8px monospace";
+      ctx.textAlign = "center";
+      ctx.fillText(this.text, this.x + 1, this.y + 1);
+      ctx.fillStyle = this.color;
+      ctx.fillText(this.text, this.x, this.y);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // 扬尘粒子
+  class Dust {
+    constructor(x, y) {
+      this.x = x + (Math.random() - 0.5) * 8;
+      this.y = y - 1;
+      this.vx = (Math.random() - 0.5) * 1.2;
+      this.vy = -Math.random() * 1.2;
+      this.life = 18 + Math.floor(Math.random() * 8);
+      this.maxLife = this.life;
+      this.size = Math.random() < 0.5 ? 1 : 2;
+    }
+    update() {
+      this.x += this.vx;
+      this.y += this.vy;
+      this.vy += 0.08;
+      this.vx *= 0.92;
+      this.life--;
+    }
+    render() {
+      ctx.globalAlpha = Math.max(0, this.life / this.maxLife) * 0.7;
+      ctx.fillStyle = "#8a8aa0";
+      ctx.fillRect(Math.floor(this.x), Math.floor(this.y), this.size, this.size);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // ============================================================
+  //  游戏主控
+  // ============================================================
+  const game = {
+    p1: null,
+    p2: null,
+    floats: [],
+    shake: 0,
+    winner: null,
+    time: 0,
+
+    reset() {
+      this.p1 = new Mecha({
+        id: 1, name: "P1", paletteKey: "blue",
+        x: 60, facing: 1,
+        controls: { left: "a", right: "d", jump: "w", attack: "f", defend: "g" },
+      });
+      this.p2 = new Mecha({
+        id: 2, name: "P2", paletteKey: "red",
+        x: W - 60 - SPR_W, facing: -1,
+        controls: { left: "arrowleft", right: "arrowright", jump: "arrowup", attack: "j", defend: "k" },
+      });
+      this.floats = [];
+      this.dusts = [];
+      this.shake = 0;
+      this.winner = null;
+    },
+
+    spawnFloatText(x, y, text, color) {
+      this.floats.push(new FloatText(x, y, text, color));
+    },
+
+    spawnDust(x, y) {
+      for (let i = 0; i < 6; i++) {
+        this.dusts.push(new Dust(x, y));
+      }
+    },
+
+    update() {
+      this.time++;
+      if (this.shake > 0) this.shake *= 0.85;
+
+      this.p1.update(this.p2);
+      this.p2.update(this.p1);
+
+      // 两者不能重叠穿透（简单推开）
+      const a = this.p1.bounds, b = this.p2.bounds;
+      if (rectOverlap(a, b)) {
+        const overlap = (a.x + a.w) - b.x;
+        if (this.p1.x < this.p2.x) {
+          this.p1.x -= overlap / 2;
+          this.p2.x += overlap / 2;
+        } else {
+          this.p1.x += overlap / 2;
+          this.p2.x -= overlap / 2;
+        }
+      }
+
+      // 飘字
+      this.floats.forEach(f => f.update());
+      this.floats = this.floats.filter(f => f.life > 0);
+
+      // 扬尘
+      this.dusts.forEach(d => d.update());
+      this.dusts = this.dusts.filter(d => d.life > 0);
+
+      // 胜负判定
+      if (!this.winner) {
+        if (this.p1.hp <= 0) this.winner = this.p2;
+        else if (this.p2.hp <= 0) this.winner = this.p1;
+      }
+    },
+
+    render() {
+      ctx.save();
+      // 屏幕震动
+      if (this.shake > 0.3) {
+        ctx.translate(
+          (Math.random() - 0.5) * this.shake,
+          (Math.random() - 0.5) * this.shake
+        );
+      }
+
+      drawBackground(this.time);
+
+      // 阴影
+      [this.p1, this.p2].forEach(m => {
+        ctx.fillStyle = "rgba(0,0,0,0.4)";
+        ctx.beginPath();
+        ctx.ellipse(m.x + SPR_W / 2, GROUND_Y + 1, SPR_W / 2, 3, 0, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // 机甲
+      this.p1.render();
+      this.p2.render();
+
+      // 扬尘
+      this.dusts.forEach(d => d.render());
+
+      // 飘字
+      this.floats.forEach(f => f.render());
+
+      ctx.restore();
+
+      // ---- HUD ----
+      this.renderHpBar(this.p1, 8, 8, 1);
+      this.renderHpBar(this.p2, W - 8 - 110, 8, -1);
+
+      // VS 标志
+      ctx.fillStyle = "#ffd43b";
+      ctx.font = "bold 10px monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("VS", W / 2, 16);
+
+      // 胜利画面
+      if (this.winner) {
+        ctx.fillStyle = "rgba(0,0,0,0.6)";
+        ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = this.winner.paletteKey === "blue" ? "#4d9bff" : "#ff6b6b";
+        ctx.font = "bold 20px monospace";
+        ctx.textAlign = "center";
+        ctx.fillText(this.winner.name + " WIN!", W / 2, H / 2 - 6);
+        ctx.fillStyle = "#fff";
+        ctx.font = "10px monospace";
+        ctx.fillText("按 R 重新开始", W / 2, H / 2 + 14);
+      }
+    },
+
+    renderHpBar(m, x, y, dir) {
+      const bw = 110, bh = 8;
+      // 外框
+      ctx.fillStyle = "#000";
+      ctx.fillRect(x - 1, y - 1, bw + 2, bh + 2);
+      ctx.fillStyle = "#2a2a3a";
+      ctx.fillRect(x, y, bw, bh);
+      // 血条
+      const ratio = m.hp / m.maxHp;
+      const color = ratio > 0.5 ? "#51cf66" : ratio > 0.25 ? "#ffd43b" : "#ff6b6b";
+      ctx.fillStyle = color;
+      if (dir === 1) {
+        ctx.fillRect(x, y, bw * ratio, bh);
+      } else {
+        ctx.fillRect(x + bw * (1 - ratio), y, bw * ratio, bh);
+      }
+      // 名字
+      ctx.fillStyle = m.paletteKey === "blue" ? "#4d9bff" : "#ff6b6b";
+      ctx.font = "bold 8px monospace";
+      ctx.textAlign = dir === 1 ? "left" : "right";
+      ctx.fillText(m.name, dir === 1 ? x : x + bw, y - 3);
+      // 数值
+      ctx.fillStyle = "#fff";
+      ctx.fillText(m.hp + "/" + m.maxHp, dir === 1 ? x + bw : x, y - 3);
+    },
+  };
+
+  // ============================================================
+  //  主循环
+  // ============================================================
+  function loop() {
+    game.update();
+    game.render();
+    requestAnimationFrame(loop);
+  }
+
+  game.reset();
+  loop();
+})();
+</script>
+</body>
+</html>
