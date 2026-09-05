@@ -160,8 +160,131 @@
   // ============================================================
   // 颜色键: o=outline b=body l=light v=visor c=core g=metal s=silver w=weapon
   const SPR = {
-    idle1: [
+    // ============== 待机动画：呼吸 + 天线指示灯闪烁 + 面罩高光移动 ==============
+    idle1: [ // 吸气：胸口核心展开，天线亮，面罩高光偏右
+      "......ao........",
+      ".....obbo.......",
+      "....obbbbo......",
+      "....obbbbo......",
+      "....ovvvevo.....",
+      "...oobbbbboo....",
+      "..obbbbbbbbo....",
+      ".obbooooooobbo..",
+      ".obbocccccobbo..",
+      ".obbocccccobbo..",
+      ".obbooooooobbo..",
+      "..obbbbbbbbbo...",
+      "..obbo...obbo...",
+      "..oggo...oggo...",
+      "..oggo...oggo...",
+      "..osso...osso...",
+      "..osso...osso...",
+      "...oo.....oo....",
+      "..osso...osso...",
+      "..osso...osso...",
+      "..osso...osso...",
+      "..ooo.....ooo...",
+    ],
+    idle2: [ // 呼气过渡：核心收窄，天线亮，高光居中
+      "......ao........",
+      ".....obbo.......",
+      "....obbbbo......",
+      "....obbbbo......",
+      "....ovvevvo.....",
+      "...oobbbbboo....",
+      "..obbbbbbbbo....",
+      ".obbooooooobbo..",
+      ".obboccccoobbo..",
+      ".obboccccoobbo..",
+      ".obbooooooobbo..",
+      "..obbbbbbbbbo...",
+      "..obbo...obbo...",
+      "..oggo...oggo...",
+      "..oggo...oggo...",
+      "..osso...osso...",
+      "..osso...osso...",
+      "...oo.....oo....",
+      "..osso...osso...",
+      "..osso...osso...",
+      "..osso...osso...",
+      "..ooo.....ooo...",
+    ],
+    idle3: [ // 呼气到底：核心最窄，天线熄灭（变暗），高光偏左
       "......oo........",
+      ".....obbo.......",
+      "....obbbbo......",
+      "....obbbbo......",
+      "....ovevvvo.....",
+      "...oobbbbboo....",
+      "..obbbbbbbbo....",
+      ".obbooooooobbo..",
+      ".obboccoooobbo..",
+      ".obboccoooobbo..",
+      ".obbooooooobbo..",
+      "..obbbbbbbbbo...",
+      "..obbo...obbo...",
+      "..oggo...oggo...",
+      "..oggo...oggo...",
+      "..osso...osso...",
+      "..osso...osso...",
+      "...oo.....oo....",
+      "..osso...osso...",
+      "..osso...osso...",
+      "..osso...osso...",
+      "..ooo.....ooo...",
+    ],
+    idle4: [ // 吸气过渡：核心回升，天线亮，高光居中
+      "......ao........",
+      ".....obbo.......",
+      "....obbbbo......",
+      "....obbbbo......",
+      "....ovvevvo.....",
+      "...oobbbbboo....",
+      "..obbbbbbbbo....",
+      ".obbooooooobbo..",
+      ".obboccccoobbo..",
+      ".obboccccoobbo..",
+      ".obbooooooobbo..",
+      "..obbbbbbbbbo...",
+      "..obbo...obbo...",
+      "..oggo...oggo...",
+      "..oggo...oggo...",
+      "..osso...osso...",
+      "..osso...osso...",
+      "...oo.....oo....",
+      "..osso...osso...",
+      "..osso...osso...",
+      "..osso...osso...",
+      "..ooo.....ooo...",
+    ],
+
+    // ============== 行走动画：4 帧，腿部大幅交替 + 身体起伏 ==============
+    walk1: [ // 左腿前迈（向右），右腿后蹬，上身前倾
+      ".......ao.......",
+      "......obbo......",
+      ".....obbbbo.....",
+      ".....obbbbo.....",
+      ".....ovvvvo.....",
+      "....oobbbbboo...",
+      "...obbbbbbbbo...",
+      "..obbooooooobbo.",
+      "..obbocccccobbo.",
+      "..obbocccccobbo.",
+      "..obbooooooobbo.",
+      "...obbbbbbbbbo..",
+      "..obbo...obbo...",
+      "..oggo...oggo...",
+      "..oggo...oggo...",
+      "..osso...osso...",
+      "..osso...osso...",
+      "...oo.....oo....",
+      "..osso...osso...",
+      "..osso....osso..",
+      "..ooo......ooo..",
+      "................",
+    ],
+    walk2: [ // 双腿交叠（身体抬高 1px），天线亮
+      "......ao........",
       ".....obbo.......",
       "....obbbbo......",
       "....obbbbo......",
@@ -180,14 +303,38 @@
       "..osso...osso...",
       "...oo.....oo....",
       "..osso...osso...",
-      "..osso...osso...",
       "..ooo.....ooo...",
       "................",
-    ],
-    idle2: [
       "................",
-      "......oo........",
+    ],
+    walk3: [ // 右腿前迈，左腿后蹬，上身前倾
+      ".......ao.......",
+      "......obbo......",
+      ".....obbbbo.....",
+      ".....obbbbo.....",
+      ".....ovvvvo.....",
+      "....oobbbbboo...",
+      "...obbbbbbbbo...",
+      "..obbooooooobbo.",
+      "..obbocccccobbo.",
+      "..obbocccccobbo.",
+      "..obbooooooobbo.",
+      "...obbbbbbbbbo..",
+      "..obbo...obbo...",
+      "..oggo...oggo...",
+      "..oggo...oggo...",
+      "..osso...osso...",
+      "..osso...osso...",
+      "...oo.....oo....",
+      "..osso...osso...",
+      ".osso.....osso..",
+      ".ooo.......ooo..",
+      "................",
+    ],
+    walk4: [ // 双腿交叠（身体抬高 1px）
+      "......ao........",
       ".....obbo.......",
+      "....obbbbo......",
       "....obbbbo......",
       "....ovvvvo......",
       "...oobbbbboo....",
@@ -204,12 +351,88 @@
       "..osso...osso...",
       "...oo.....oo....",
       "..osso...osso...",
+      "..ooo.....ooo...",
+      "................",
+      "................",
+    ],
+
+    // ============== 跳跃：双腿收起，双臂微张 ==============
+    jump: [
+      "......ao........",
+      ".....obbo.......",
+      "....obbbbo......",
+      "....obbbbo......",
+      "....ovvvvo......",
+      "...oobbbbboo....",
+      "..obbbbbbbbo....",
+      ".obbooooooobbo..",
+      ".obbocccccobbo..",
+      ".obbocccccobbo..",
+      ".obbooooooobbo..",
+      "..obbbbbbbbbo...",
+      ".obbo.....obbo..",
+      ".oggo.....oggo..",
+      ".oggo.....oggo..",
+      "..osso...osso...",
+      "..osso...osso...",
+      "...oo.....oo....",
+      "....oo...oo.....",
+      "....oo...oo.....",
+      "................",
+      "................",
+    ],
+
+    // ============== 攻击：三段蓄力/出拳/收招 ==============
+    attack1: [ // 蓄力：右臂后拉，武器举到身后
+      "......ao........",
+      ".....obbo.......",
+      "....obbbbo......",
+      "....ovvvvo......",
+      "...oobbbbboo....",
+      "..obbbbbbbbo....",
+      ".obbooooooobbo..",
+      ".obbocccccobbo..",
+      ".obbocccccobbo..",
+      ".obbooooooobbo..",
+      "..obbbbbbbbbo...",
+      "..obbo...obbo...",
+      "woggo...oggo....",
+      "woggo...oggo....",
+      "..osso...osso...",
+      "..osso...osso...",
+      "...oo.....oo....",
+      "..osso...osso...",
+      "..osso...osso...",
       "..osso...osso...",
       "..ooo.....ooo...",
       "................",
     ],
-    walk1: [
-      "......oo........",
+    attack2: [ // 出拳：右臂全力前伸，武器突出，身体前倾
+      ".......ao.......",
+      "......obbo......",
+      ".....obbbbo.....",
+      ".....ovvvvo.....",
+      "....oobbbbboo...",
+      "...obbbbbbbbo...",
+      "..obbooooooobbo.",
+      "..obbocccccobbo.",
+      "..obbocccccobbo.",
+      "..obbooooooobbo.",
+      "...obbbbbbbbbo..",
+      "..obbo...obbobow",
+      "..oggo...ogggow.",
+      "..oggo...oggo...",
+      "..osso...osso...",
+      "..osso...osso...",
+      "...oo.....oo....",
+      "..osso...osso...",
+      "..osso...osso...",
+      "..osso...osso...",
+      "..ooo.....ooo...",
+      "................",
+    ],
+    attack3: [ // 收招：右臂收回过渡
+      "......ao........",
       ".....obbo.......",
       "....obbbbo......",
       "....ovvvvo......",
@@ -221,80 +444,8 @@
       ".obbooooooobbo..",
       "..obbbbbbbbbo...",
       "..obbo..obbo....",
+      "..oggoo.oggo....",
       "..oggo..oggo....",
-      "..oggo..oggo....",
-      "..osso..osso....",
-      "..osso...osso...",
-      "...oo.....oo....",
-      "..osso...osso...",
-      "..osso...osso...",
-      "..osso....osso..",
-      "..ooo.....ooo...",
-      "................",
-    ],
-    walk2: [
-      "......oo........",
-      ".....obbo.......",
-      "....obbbbo......",
-      "....ovvvvo......",
-      "...oobbbbboo....",
-      "..obbbbbbbbo....",
-      ".obbooooooobbo..",
-      ".obbocccccobbo..",
-      ".obbocccccobbo..",
-      ".obbooooooobbo..",
-      "..obbbbbbbbbo...",
-      "...obbo..obbo...",
-      "...oggo..oggo...",
-      "...oggo..oggo...",
-      "...osso..osso...",
-      "..osso...osso...",
-      "...oo.....oo....",
-      "..osso...osso...",
-      ".osso.....osso..",
-      "..osso....osso..",
-      "...ooo....ooo...",
-      "................",
-    ],
-    jump: [
-      "......oo........",
-      ".....obbo.......",
-      "....obbbbo......",
-      "....ovvvvo......",
-      "...oobbbbboo....",
-      "..obbbbbbbbo....",
-      ".obbooooooobbo..",
-      ".obbocccccobbo..",
-      ".obbocccccobbo..",
-      ".obbooooooobbo..",
-      "..obbbbbbbbbo...",
-      "..obbo...obbo...",
-      "..oggo...oggo...",
-      "..oggo...oggo...",
-      "..osso...osso...",
-      "..osso...osso...",
-      "...oo.....oo....",
-      "...ooo...ooo....",
-      "................",
-      "................",
-      "................",
-      "................",
-    ],
-    attack1: [ // 蓄力
-      "......oo........",
-      ".....obbo.......",
-      "....obbbbo......",
-      "....ovvvvo......",
-      "...oobbbbboo....",
-      "..obbbbbbbbo....",
-      ".obbooooooobbo..",
-      ".obbocccccobbo..",
-      ".obbocccccobbo..",
-      ".obbooooooobbo..",
-      "..obbbbbbbbbo...",
-      "..obboo..obbo...",
-      "..oggwoo.oggo...",
-      "..ogwoo..oggo...",
       "..osso...osso...",
       "..osso...osso...",
       "...oo.....oo....",
@@ -304,56 +455,10 @@
       "..ooo.....ooo...",
       "................",
     ],
-    attack2: [ // 出拳/出剑
-      "......oo........",
-      ".....obbo.......",
-      "....obbbbo......",
-      "....ovvvvo......",
-      "...oobbbbboo....",
-      "..obbbbbbbbo....",
-      ".obbooooooobbo..",
-      ".obbocccccobbo..",
-      ".obbocccccobbo..",
-      ".obbooooooobbo..",
-      "..obbbbbbbbbo...",
-      "..obbo...obbooow",
-      "..oggo...oggwww.",
-      "..oggo...ogwww..",
-      "..osso...osso...",
-      "..osso...osso...",
-      "...oo.....oo....",
-      "..osso...osso...",
-      "..osso...osso...",
-      "..osso...osso...",
-      "..ooo.....ooo...",
-      "................",
-    ],
-    attack3: [ // 收招
-      "......oo........",
-      ".....obbo.......",
-      "....obbbbo......",
-      "....ovvvvo......",
-      "...oobbbbboo....",
-      "..obbbbbbbbo....",
-      ".obbooooooobbo..",
-      ".obbocccccobbo..",
-      ".obbocccccobbo..",
-      ".obbooooooobbo..",
-      "..obbbbbbbbbo...",
-      "..obboo..obbo...",
-      "..oggoo..oggo...",
-      "..oggo...oggo...",
-      "..osso...osso...",
-      "..osso...osso...",
-      "...oo.....oo....",
-      "..osso...osso...",
-      "..osso...osso...",
-      "..osso...osso...",
-      "..ooo.....ooo...",
-      "................",
-    ],
-    defend: [ // 举盾（护盾在右侧=朝向方向）
-      "......oo........",
+
+    // ============== 防御：举起能量盾 ==============
+    defend: [
+      "......ao........",
       ".....obbo.......",
       "....obbbbo......",
       "....ovvvvo......",
@@ -373,9 +478,11 @@
       "...oo.....oo....",
       "..osso...osso...",
       "..osso...osso...",
+      "..osso...osso...",
       "..ooo.....ooo...",
-      "................",
     ],
+
+    // ============== 受击：面罩变叉，核心受损收窄 ==============
     hurt: [
       "......oo........",
       ".....obbo.......",
@@ -384,8 +491,8 @@
       "...oobbbbboo....",
       "..obbbbbbbbo....",
       ".obbooooooobbo..",
-      ".obooccccoobbo..",
-      ".obooccccoobbo..",
+      ".obboccoooobbo..",
+      ".obboccoooobbo..",
       ".obbooooooobbo..",
       "..obbbbbbbbbo...",
       "..obbo...obbo...",
@@ -622,6 +729,11 @@
 
       // 地面
       if (this.y >= GROUND_Y - SPR_H) {
+        if (!this.onGround && this.vy > 1) {
+          // 落地扬尘
+          game.spawnDust(this.x + SPR_W / 2, GROUND_Y);
+          game.shake = Math.max(game.shake, 2);
+        }
         this.y = GROUND_Y - SPR_H;
         this.vy = 0;
         this.onGround = true;
@@ -642,7 +754,7 @@
       let frame;
       switch (this.state) {
         case "walk":
-          frame = (Math.floor(this.animTime / 6) % 2 === 0) ? "walk1" : "walk2";
+          frame = "walk" + ((Math.floor(this.animTime / 5) % 4) + 1);
           break;
         case "jump":
           frame = "jump";
@@ -660,7 +772,7 @@
           frame = "hurt";
           break;
         default:
-          frame = (Math.floor(this.animTime / 18) % 2 === 0) ? "idle1" : "idle2";
+          frame = "idle" + ((Math.floor(this.animTime / 12) % 4) + 1);
       }
 
       const img = SPRITE_CACHE[this.paletteKey][frame];
@@ -694,20 +806,56 @@
       }
       ctx.restore();
 
-      // 死亡倒地：简单旋转效果
+      // 攻击出拳瞬间的挥砍轨迹
+      if (this.state === "attack" && this.currentAttackFrame() === "attack2") {
+        ctx.save();
+        const dir = this.facing;
+        const cx = this.x + (dir === 1 ? SPR_W : 0);
+        const cy = this.y + 10;
+        const alpha = 0.5 + 0.3 * Math.sin(this.animTime * 0.8);
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 10, dir === 1 ? -0.8 : Math.PI - 0.8, dir === 1 ? 0.8 : Math.PI + 0.8);
+        ctx.stroke();
+        ctx.globalAlpha = alpha * 0.5;
+        ctx.strokeStyle = "#74c0fc";
+        ctx.lineWidth = 4;
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // 死亡倒地：淡出
       if (this.state === "dead") {
         ctx.save();
         ctx.globalAlpha = Math.max(0, 1 - this.stateTimer / 60);
         ctx.restore();
       }
 
-      // 防御盾光效
+      // 防御盾光效：能量护盾 + 边缘高光 + 脉冲
       if (this.isDefending()) {
         ctx.save();
-        ctx.globalAlpha = 0.35 + 0.15 * Math.sin(this.animTime * 0.3);
+        const dir = this.facing;
+        const sx = dir === 1 ? this.x + SPR_W - 4 : this.x - 4;
+        const sy = this.y + 4;
+        const sw = 8, sh = SPR_H - 8;
+        const pulse = 0.5 + 0.5 * Math.sin(this.animTime * 0.25);
+        // 护盾主体
+        ctx.globalAlpha = 0.25 + 0.15 * pulse;
         ctx.fillStyle = "#74c0fc";
-        const sx = this.facing === 1 ? this.x + SPR_W - 4 : this.x - 4;
-        ctx.fillRect(sx, this.y + 4, 8, SPR_H - 8);
+        ctx.fillRect(sx, sy, sw, sh);
+        // 护盾边缘高光
+        ctx.globalAlpha = 0.6 + 0.3 * pulse;
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(sx, sy, 1, sh);
+        ctx.fillRect(sx + sw - 1, sy, 1, sh);
+        // 能量粒子
+        ctx.globalAlpha = 0.4 + 0.4 * pulse;
+        for (let i = 0; i < 3; i++) {
+          const py = sy + ((this.animTime * 1.5 + i * 6) % sh);
+          ctx.fillRect(sx + 2 + (i % 2) * 3, py, 1, 1);
+        }
         ctx.restore();
       }
     }
@@ -795,6 +943,32 @@
     }
   }
 
+  // 扬尘粒子
+  class Dust {
+    constructor(x, y) {
+      this.x = x + (Math.random() - 0.5) * 8;
+      this.y = y - 1;
+      this.vx = (Math.random() - 0.5) * 1.2;
+      this.vy = -Math.random() * 1.2;
+      this.life = 18 + Math.floor(Math.random() * 8);
+      this.maxLife = this.life;
+      this.size = Math.random() < 0.5 ? 1 : 2;
+    }
+    update() {
+      this.x += this.vx;
+      this.y += this.vy;
+      this.vy += 0.08;
+      this.vx *= 0.92;
+      this.life--;
+    }
+    render() {
+      ctx.globalAlpha = Math.max(0, this.life / this.maxLife) * 0.7;
+      ctx.fillStyle = "#8a8aa0";
+      ctx.fillRect(Math.floor(this.x), Math.floor(this.y), this.size, this.size);
+      ctx.globalAlpha = 1;
+    }
+  }
+
   // ============================================================
   //  游戏主控
   // ============================================================
@@ -818,12 +992,19 @@
         controls: { left: "arrowleft", right: "arrowright", jump: "arrowup", attack: "j", defend: "k" },
       });
       this.floats = [];
+      this.dusts = [];
       this.shake = 0;
       this.winner = null;
     },
 
     spawnFloatText(x, y, text, color) {
       this.floats.push(new FloatText(x, y, text, color));
+    },
+
+    spawnDust(x, y) {
+      for (let i = 0; i < 6; i++) {
+        this.dusts.push(new Dust(x, y));
+      }
     },
 
     update() {
@@ -849,6 +1030,10 @@
       // 飘字
       this.floats.forEach(f => f.update());
       this.floats = this.floats.filter(f => f.life > 0);
+
+      // 扬尘
+      this.dusts.forEach(d => d.update());
+      this.dusts = this.dusts.filter(d => d.life > 0);
 
       // 胜负判定
       if (!this.winner) {
@@ -880,6 +1065,9 @@
       // 机甲
       this.p1.render();
       this.p2.render();
+
+      // 扬尘
+      this.dusts.forEach(d => d.render());
 
       // 飘字
       this.floats.forEach(f => f.render());
